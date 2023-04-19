@@ -9,9 +9,7 @@ import './black-dashboard-react.css'
 import { RouteType } from 'types'
 import routes from '../routes'
 
-import MainPage from '../views/Home'
-
-import Navigator from './Navbar'
+import Web3modalExample from 'views/Web3modal'
 
 const queryClient = new QueryClient()
 
@@ -31,9 +29,8 @@ function App(): ReactElement {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <div className="content">
-          <Navigator />
           <Routes>
-            <Route path="/" element={<MainPage />} />
+            <Route path="/" element={<Web3modalExample />} />
             {getRoutes(routes)}
           </Routes>
         </div>

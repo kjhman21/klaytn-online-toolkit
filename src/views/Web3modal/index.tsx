@@ -5,8 +5,9 @@ import Web3Modal from '@klaytn/web3modal'
 import { KaikasWeb3Provider } from '@klaytn/kaikas-web3-provider'
 import { KlipWeb3Provider } from '@klaytn/klip-web3-provider'
 import _ from 'lodash'
-import { TransactionReceipt } from 'web3-core'
 import { isMobile } from 'react-device-detect'
+import queryString from 'query-string'
+// import Caver from 'caver-js'
 
 import {
   Button,
@@ -14,23 +15,16 @@ import {
   Card,
   CardHeader,
   CardBody,
-  Label,
-  FormInput,
-  Text,
   View,
-  CardSection,
   Loading,
   LinkA,
+  FormInput,
 } from 'components'
-import useLayout from 'hooks/useLayout'
 import { IAssetData } from 'types'
 import { WEB3MODAL } from 'consts'
 import {
   apiGetAccountAssets,
-  formatTestTransaction,
   getChainData,
-  hashPersonalMessage,
-  recoverPublicKey,
 } from './helpers/utilities'
 import {
   Header,
@@ -38,7 +32,7 @@ import {
   ModalResult,
   Modal,
 } from './web3modalComponents'
-import { callBalanceOf, callTransfer } from './helpers/web3'
+import axios from 'axios'
 
 const SLayout = styled.div`
   position: relative;
@@ -51,6 +45,24 @@ const SContent = styled.div`
   width: 100%;
   height: 100%;
   padding: 0 16px;
+`
+
+const FormGroup = styled.div`
+  display: flex;
+  align-items: center;
+  position: relative;
+`
+
+const SFormInput = styled(FormInput)`
+  margin-bottom: 10px;
+  width: 100%;
+`
+const NameConverter = styled.div`
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 400;
+  padding-bottom: 15px;
+  min-width: 140px;
 `
 
 const SContainer = styled.div`
@@ -87,6 +99,9 @@ const SModalParagraph = styled.p`
   font-weight: 400;
 `
 
+const RoleTable = styled.div`
+  padding: 20px 15px;
+`
 // @ts-ignore
 const SBalances = styled(SLanding)`
   height: 100%;
@@ -114,7 +129,6 @@ const STestButton = styled(Button)`
 `
 
 const Web3modalExample = (): ReactElement => {
-  const { isUnderTabletWidth } = useLayout()
   const [chainId, setChainId] = useState<number>(1)
   const [networkId, setNetworkId] = useState<number>(1)
   const [connected, setConnected] = useState<boolean>(false)
@@ -124,10 +138,14 @@ const Web3modalExample = (): ReactElement => {
   const [pendingRequest, setPendingRequest] = useState<boolean>(false)
   const [result, setResult] = useState<any | null>(null)
   const [assets, setAssets] = useState<IAssetData[]>()
-  const [kip7ContractAddress, setKip7ContractAddress] = useState('')
+  const [, setKip7ContractAddress] = useState('')
   const [web3modal, setWeb3modal] = useState<any>()
   const [web3, setWeb3] = useState<any>()
+  const [userInfo, setUserInfo] = useState<any>({})
+  const [roleClasses, setRoleClasses] = useState<Array<any>>([]);
   const href = window.location.href
+
+  const avatar_url = process.env.REACT_APP_DISCORD_AVATAR_URL
 
   const getAccountAssets = async ({
     changedAddress,
@@ -145,6 +163,58 @@ const Web3modalExample = (): ReactElement => {
       setFetching(false)
     }
   }
+
+  useEffect(()=>{
+    const qs = queryString.parse(window.location.search);
+    if(qs.code) {
+      axios.get(`${process.env.REACT_APP_BACKEND_API_URL}?code=${qs.code}`)
+      .then(function (res) {
+        setUserInfo(res.data)
+      }).catch(function (error) {
+        if (error.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          console.log("request failed")
+          console.log(error.response.data);
+          console.log(error.response.status);
+          console.log(error.response.headers);
+        } else if (error.request) {
+          // The request was made but no response was received
+          // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+          // http.ClientRequest in node.js
+          console.log(error.request);
+        } else {
+          // Something happened in setting up the request that triggered an Error
+          console.log('Error', error.message);
+        }
+        console.log(error.config);
+      });
+    }
+
+    // fetch role table
+    axios.get(`${process.env.REACT_APP_BACKEND_API_URL}/class/klay`)
+    .then(function (res) {
+      setRoleClasses(res.data);
+    }).catch(function (error) {
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.log("request failed")
+        console.log(error.response.data);
+        console.log(error.response.status);
+        console.log(error.response.headers);
+      } else if (error.request) {
+        // The request was made but no response was received
+        // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+        // http.ClientRequest in node.js
+        console.log(error.request);
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.log('Error', error.message);
+      }
+      console.log(error.config);
+    });
+  },[])
 
   useEffect(() => {
     setWeb3modal(
@@ -248,83 +318,34 @@ const Web3modalExample = (): ReactElement => {
     setKip7ContractAddress('')
   }
 
-  const testSendTransaction = async (): Promise<void> => {
-    const tx = await formatTestTransaction(address, chainId)
-    try {
-      toggleModal()
-      setPendingRequest(true)
-
-      // send transaction
-      const result = await web3.eth
-        .sendTransaction(tx)
-        .then((receipt: TransactionReceipt) => {
-          return receipt
-        })
-      // get native currency symbol of current chain
-      const nativeCurrency = getChainData(chainId).native_currency.symbol
-      // format displayed result
-      const formattedResult = {
-        action: WEB3MODAL.ETH_SEND_TRANSACTION,
-        txHash: result.transactionHash,
-        from: address,
-        to: address,
-        value: `${
-          chainId === 1001 || chainId === 8217 ? 0.000001 : 0
-        } ${nativeCurrency}`,
-      }
-      setPendingRequest(false)
-      setResult(formattedResult || null)
-    } catch (err) {
-      setPendingRequest(false)
-      setResult(null)
-    }
-  }
-
-  const testSignMessage = async (): Promise<void> => {
-    try {
-      // test message
-      const message = 'My email is john@doe.com - 1537836206101'
-
-      // hash message
-      const hash = hashPersonalMessage(message)
-
-      toggleModal()
-      setPendingRequest(true)
-
-      // send message
-      const result = await web3.eth.sign(hash, address)
-
-      // verify signature
-      const signer = recoverPublicKey(result, hash)
-      const verified = signer.toLowerCase() === address.toLowerCase()
-
-      // format displayed result
-      const formattedResult = {
-        action: WEB3MODAL.ETH_SIGN,
-        address,
-        signer,
-        verified,
-        result,
-      }
-      setPendingRequest(false)
-      setResult(formattedResult || null)
-    } catch (err) {
-      setPendingRequest(false)
-      setResult(null)
-    }
-  }
-
   const testSignPersonalMessage = async (): Promise<void> => {
     try {
       toggleModal()
       setPendingRequest(true)
-      const message = 'My email is john@doe.com - 1537836206101'
+      const ts = new Date().getTime();
+      var message = ''
+      if(!!assets && !!assets.length)
+        message = `Address: ${address.toLowerCase()}\nDiscord ID: ${userInfo.id}\nDiscord Username: ${userInfo.username}\nTimestamp ${ts}`;
 
-      const result = await web3.eth.personal.sign(message, address, '')
+      const sig = await web3.eth.personal.sign(message, address, '')
+
+      const res = await axios.post(`${process.env.REACT_APP_BACKEND_API_URL}`,{
+        address,
+        id: userInfo.id,
+        username: userInfo.username,
+        signature: sig,
+        timestamp: ts,
+      })
+      console.log("result of", res)
 
       // verify signature
-      const signer = await web3.eth.personal.ecRecover(message, result)
+      const signer = await web3.eth.personal.ecRecover(message, sig)
       const verified = signer.toLowerCase() === address.toLowerCase()
+
+      // verify signature with caver-js
+      // const caver = new Caver('https://public-en-cypress.klaytn.net');
+      // const sigdata = caver.utils.decodeSignature(sig);
+      // const verifiedCaver = await caver.validator.validateSignedMessage(message, sigdata, address);
 
       // format displayed result
       const formattedResult = {
@@ -332,59 +353,35 @@ const Web3modalExample = (): ReactElement => {
         address,
         signer,
         verified,
-        result,
+        result: sig,
       }
       setPendingRequest(false)
       setResult(formattedResult || null)
     } catch (err) {
       setPendingRequest(false)
       setResult(null)
+      console.log('error', err)
     }
   }
 
-  const testContractCall = async (functionSig: string): Promise<void> => {
-    try {
-      toggleModal()
-      setPendingRequest(true)
-
-      // check if address is entered
-      if (kip7ContractAddress === '') {
-        throw new Error('Please enter token contract address!')
-      }
-
-      let contractCall = null
-      switch (functionSig) {
-        case WEB3MODAL.KIP7_BALANCE_OF:
-          contractCall = callBalanceOf
-          break
-        case WEB3MODAL.KIP7_TRANSFER:
-          contractCall = callTransfer
-          break
-        default:
-          throw new Error(
-            `No matching contract calls for functionSig=${functionSig}`
-          )
-      }
-
-      // send transaction
-      const result = await contractCall(
-        address,
-        chainId,
-        kip7ContractAddress,
-        web3
+  const renderRoleTable = (): ReactElement[] => {
+    var ret = [];
+    for(var i = 0; i < roleClasses.length; i++) {
+      var item = roleClasses[i];
+      ret.push(
+        <FormGroup key={item.limit}>
+          <SFormInput
+            placeholder={item.limit}
+            onChange={():void=>{}}
+            value={item.limit}
+            readonly={true}
+          />
+          <NameConverter>{item.role}</NameConverter>
+        </FormGroup>
       )
-
-      // format displayed result
-      const formattedResult = {
-        action: functionSig,
-        result,
-      }
-      setPendingRequest(false)
-      setResult(formattedResult || null)
-    } catch (err) {
-      setPendingRequest(false)
-      setResult(null)
     }
+
+    return ret;
   }
 
   return (
@@ -411,79 +408,27 @@ const Web3modalExample = (): ReactElement => {
               </SBalances>
               <Card>
                 <CardHeader>
-                  <h3 className="title">Actions</h3>
+                  <h2>{`KLAY Holder Verification`}</h2>
+                  <h2>{`Your Discord Username: ${userInfo.username}`}</h2>
+                  <h2>{`Your Wallet Address: ${address}`}</h2>
+                  <h2><img src={`${avatar_url}/${userInfo.id}/${userInfo.avatar}`}/></h2>
                 </CardHeader>
                 <CardBody>
                   <View>
                     <STestButtonContainer>
-                      <STestButton onClick={testSendTransaction}>
-                        {WEB3MODAL.ETH_SEND_TRANSACTION}
-                      </STestButton>
-                      <STestButton onClick={testSignMessage}>
-                        {WEB3MODAL.ETH_SIGN}
-                      </STestButton>
                       <STestButton onClick={testSignPersonalMessage}>
-                        {WEB3MODAL.PERSONAL_SIGN}
+                        Verify your KLAY to Discord!
                       </STestButton>
                     </STestButtonContainer>
-                    <Text
-                      style={{
-                        padding: `${isUnderTabletWidth ? 0 : '0 120px'}`,
-                      }}
-                    >
-                      Sendtransaction(): send 0.000001 KLAY to the sender
-                      account on Klaytn Network(Mainnet, Testnet). On other
-                      networks, the amount is zero.{'\n'}
-                      eth.sign() allows signing an arbitrary hash, which means
-                      it can be used to sign transactions, or any other data,
-                      making it a dangerous phishing risk. So Kaikas and Klip
-                      don't support that function.
-                      <LinkA link="https://docs.metamask.io/guide/signing-data.html#a-brief-history">
-                        [Ref]
-                      </LinkA>
-                    </Text>
                   </View>
-                </CardBody>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <h3>KIP-7 Token</h3>
-                  <Text>
-                    Check <LinkA link="/kct/KCTDetection">here</LinkA> which KCT
-                    the smart contract implements by using Contract Address.
-                  </Text>
-                </CardHeader>
-                <CardBody>
-                  <CardSection>
-                    <Label>Token Contract Address</Label>
-                    <FormInput
-                      placeholder={'Token Contract Address'}
-                      onChange={setKip7ContractAddress}
-                      value={kip7ContractAddress}
-                    />
-                  </CardSection>
-                  <STestButtonContainer>
-                    <STestButton
-                      onClick={(): Promise<void> =>
-                        testContractCall(WEB3MODAL.KIP7_BALANCE_OF)
-                      }
-                    >
-                      {WEB3MODAL.KIP7_BALANCE_OF}
-                    </STestButton>
-                    <STestButton
-                      onClick={(): Promise<void> =>
-                        testContractCall(WEB3MODAL.KIP7_TRANSFER)
-                      }
-                    >
-                      {WEB3MODAL.KIP7_TRANSFER}
-                    </STestButton>
-                  </STestButtonContainer>
                 </CardBody>
               </Card>
             </>
           ) : (
             <SLanding>
-              <h2>{`Test Web3Modal`}</h2>
+              <h2>{`KLAY Holder Verification`}</h2>
+              <h2>{`Your Discord ID: ${userInfo.username}`}</h2>
+              <h2><img src={`${avatar_url}/${userInfo.id}/${userInfo.avatar}`}/></h2>
               {isMobile && (
                 <View style={{ paddingBottom: 10 }}>
                   <LinkA link={`https://app.kaikas.io/u/${href}`}>
@@ -492,9 +437,12 @@ const Web3modalExample = (): ReactElement => {
                   </LinkA>
                 </View>
               )}
-              <Button onClick={onConnect}> Connect </Button>
+              <Button onClick={onConnect}> Connect to Wallet</Button>
             </SLanding>
           )}
+          <RoleTable>
+            {renderRoleTable()}
+          </RoleTable>
         </SContent>
       </Container>
       <Modal show={showModal} toggleModal={toggleModal}>
