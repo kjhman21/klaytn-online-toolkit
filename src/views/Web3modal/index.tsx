@@ -7,7 +7,7 @@ import { KlipWeb3Provider } from '@klaytn/klip-web3-provider'
 import _ from 'lodash'
 import { isMobile } from 'react-device-detect'
 import queryString from 'query-string'
-// import Caver from 'caver-js'
+import Caver from 'caver-js'
 
 import {
   Button,
@@ -364,9 +364,48 @@ const Web3modalExample = (): ReactElement => {
     }
   }
 
-  const renderRoleTable = (): ReactElement[] => {
+  const renderRoleTable = (assets: IAssetData[]|undefined): ReactElement[] => {
     var ret = [];
+
+    const defaultNativeCurrency =
+      chainId === 1001 || chainId === 8217
+        ? {
+            contractAddress: '',
+            symbol: 'KLAY',
+            name: 'Klaytn',
+            decimals: '18',
+            balance: '0',
+          }
+        : {
+            contractAddress: '',
+            name: 'Ethereum',
+            symbol: 'ETH',
+            decimals: '18',
+            balance: '0',
+          }
+
+    let nativeCurrency: IAssetData = defaultNativeCurrency
+    if (assets && assets.length) {
+      const filteredNativeCurrency = assets.filter((asset: IAssetData) =>
+        asset && asset.symbol
+          ? asset.symbol.toLowerCase() === nativeCurrency.symbol.toLowerCase()
+          : false
+      )
+      nativeCurrency =
+        filteredNativeCurrency && filteredNativeCurrency.length
+          ? filteredNativeCurrency[0]
+          : defaultNativeCurrency
+    }
+    var idx = -1;
+    var caver = new Caver();
     for(var i = 0; i < roleClasses.length; i++) {
+      var item = roleClasses[i];
+      var bal = caver.utils.convertFromPeb(nativeCurrency.balance || 0, "KLAY")
+      if(item.limit > bal) break;
+      idx = i;
+    }
+    console.log('idx', idx)
+    for(i = 0; i < roleClasses.length; i++) {
       var item = roleClasses[i];
       ret.push(
         <FormGroup key={item.limit}>
@@ -376,7 +415,7 @@ const Web3modalExample = (): ReactElement => {
             value={item.limit}
             readonly={true}
           />
-          <NameConverter>{item.role}</NameConverter>
+          <NameConverter><p style={{color:idx==i?'red':''}}>{item.role}</p></NameConverter>
         </FormGroup>
       )
     }
@@ -441,7 +480,7 @@ const Web3modalExample = (): ReactElement => {
             </SLanding>
           )}
           <RoleTable>
-            {renderRoleTable()}
+            {renderRoleTable(assets)}
           </RoleTable>
         </SContent>
       </Container>
