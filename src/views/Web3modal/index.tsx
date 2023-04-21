@@ -147,6 +147,50 @@ const Web3modalExample = (): ReactElement => {
 
   const avatar_url = process.env.REACT_APP_DISCORD_AVATAR_URL
 
+  const calcRoleClass = async ():Promise<void> => {
+    const defaultNativeCurrency =
+      chainId === 1001 || chainId === 8217
+        ? {
+            contractAddress: '',
+            symbol: 'KLAY',
+            name: 'Klaytn',
+            decimals: '18',
+            balance: '0',
+          }
+        : {
+            contractAddress: '',
+            name: 'Ethereum',
+            symbol: 'ETH',
+            decimals: '18',
+            balance: '0',
+          }
+
+    let nativeCurrency: IAssetData = defaultNativeCurrency
+    if (assets && assets.length) {
+      const filteredNativeCurrency = assets.filter((asset: IAssetData) =>
+        asset && asset.symbol
+          ? asset.symbol.toLowerCase() === nativeCurrency.symbol.toLowerCase()
+          : false
+      )
+      nativeCurrency =
+        filteredNativeCurrency && filteredNativeCurrency.length
+          ? filteredNativeCurrency[0]
+          : defaultNativeCurrency
+    }
+    var idx = -1;
+    var caver = new Caver();
+    for(var i = 0; i < roleClasses.length; i++) {
+      let item = roleClasses[i];
+      var bal = caver.utils.convertFromPeb(nativeCurrency.balance || 0, "KLAY")
+      if(item.limit > bal) break;
+      idx = i;
+    }
+    if(0 <= idx && idx < roleClasses.length) {
+      console.log('discord role', roleClasses[idx].role)
+      setDiscordRole(roleClasses[idx].role);
+    }
+  }
+
   const getAccountAssets = async ({
     changedAddress,
     changedChainId,
@@ -163,6 +207,10 @@ const Web3modalExample = (): ReactElement => {
       setFetching(false)
     }
   }
+
+  useEffect(()=>{
+    calcRoleClass()
+  },[assets])
 
   useEffect(()=>{
     const qs = queryString.parse(window.location.search);
@@ -366,59 +414,11 @@ const Web3modalExample = (): ReactElement => {
     }
   }
 
-  const renderRoleTable = (assets: IAssetData[]|undefined): ReactElement[] => {
+  const renderRoleTable = (): ReactElement[] => {
     var ret = [];
 
-    const defaultNativeCurrency =
-      chainId === 1001 || chainId === 8217
-        ? {
-            contractAddress: '',
-            symbol: 'KLAY',
-            name: 'Klaytn',
-            decimals: '18',
-            balance: '0',
-          }
-        : {
-            contractAddress: '',
-            name: 'Ethereum',
-            symbol: 'ETH',
-            decimals: '18',
-            balance: '0',
-          }
-
-    let nativeCurrency: IAssetData = defaultNativeCurrency
-    if (assets && assets.length) {
-      const filteredNativeCurrency = assets.filter((asset: IAssetData) =>
-        asset && asset.symbol
-          ? asset.symbol.toLowerCase() === nativeCurrency.symbol.toLowerCase()
-          : false
-      )
-      nativeCurrency =
-        filteredNativeCurrency && filteredNativeCurrency.length
-          ? filteredNativeCurrency[0]
-          : defaultNativeCurrency
-    }
-    var idx = -1;
-    var caver = new Caver();
     for(var i = 0; i < roleClasses.length; i++) {
       let item = roleClasses[i];
-      var bal = caver.utils.convertFromPeb(nativeCurrency.balance || 0, "KLAY")
-      if(item.limit > bal) break;
-      idx = i;
-    }
-    ret.push(
-      <Card>
-        <CardHeader>
-          The below table shows which role your discord account will get. Your role is colored <div style={{display:'inline-block',color:'red'}}>red</div>.
-          <br/>Note that you need to have more than {roleClasses[0].limit} KLAY to get the role.
-        </CardHeader>
-      </Card>
-    )
-    for(i = 0; i < roleClasses.length; i++) {
-      let item = roleClasses[i];
-      if(i === idx) {
-        setDiscordRole(item.role)
-      }
       ret.push(
         <FormGroup key={item.limit}>
           <SFormInput
@@ -427,7 +427,7 @@ const Web3modalExample = (): ReactElement => {
             value={item.limit}
             readonly={true}
           />
-          <NameConverter><p style={{color:idx===i?'red':''}}>{item.role}</p></NameConverter>
+          <NameConverter><p style={{color:item.role===discordRole?'red':''}}>{item.role}</p></NameConverter>
         </FormGroup>
       )
     }
@@ -492,7 +492,13 @@ const Web3modalExample = (): ReactElement => {
             </SLanding>
           )}
           <RoleTable>
-            {renderRoleTable(assets)}
+            <Card>
+              <CardHeader>
+                The below table shows which role your discord account will get. Your role is colored <div style={{display:'inline-block',color:'red'}}>red</div>.
+                <br/>Note that you need to have more than {roleClasses.length > 0 ? roleClasses[0].limit:0} KLAY to get the role.
+              </CardHeader>
+            </Card>
+            {renderRoleTable()}
           </RoleTable>
         </SContent>
       </Container>
