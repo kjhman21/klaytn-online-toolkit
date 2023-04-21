@@ -21,7 +21,6 @@ import {
   FormInput,
 } from 'components'
 import { IAssetData } from 'types'
-import { WEB3MODAL } from 'consts'
 import {
   apiGetAccountAssets,
   getChainData,
@@ -143,6 +142,7 @@ const Web3modalExample = (): ReactElement => {
   const [web3, setWeb3] = useState<any>()
   const [userInfo, setUserInfo] = useState<any>({})
   const [roleClasses, setRoleClasses] = useState<Array<any>>([]);
+  const [discordRole, setDiscordRole] = useState<string>("");
   const href = window.location.href
 
   const avatar_url = process.env.REACT_APP_DISCORD_AVATAR_URL
@@ -329,18 +329,17 @@ const Web3modalExample = (): ReactElement => {
 
       const sig = await web3.eth.personal.sign(message, address, '')
 
-      const res = await axios.post(`${process.env.REACT_APP_BACKEND_API_URL}`,{
+      await axios.post(`${process.env.REACT_APP_BACKEND_API_URL}`,{
         address,
         id: userInfo.id,
         username: userInfo.username,
         signature: sig,
         timestamp: ts,
       })
-      console.log("result of", res)
 
       // verify signature
-      const signer = await web3.eth.personal.ecRecover(message, sig)
-      const verified = signer.toLowerCase() === address.toLowerCase()
+      // const signer = await web3.eth.personal.ecRecover(message, sig)
+      // const verified = signer.toLowerCase() === address.toLowerCase()
 
       // verify signature with caver-js
       // const caver = new Caver('https://public-en-cypress.klaytn.net');
@@ -348,12 +347,15 @@ const Web3modalExample = (): ReactElement => {
       // const verifiedCaver = await caver.validator.validateSignedMessage(message, sigdata, address);
 
       // format displayed result
+      // const formattedResult = {
+      //   action: WEB3MODAL.PERSONAL_SIGN,
+      //   address,
+      //   signer,
+      //   verified,
+      //   result: sig,
+      // }
       const formattedResult = {
-        action: WEB3MODAL.PERSONAL_SIGN,
-        address,
-        signer,
-        verified,
-        result: sig,
+        message: `DiscordID ${userInfo.username} has the role ${discordRole}.`
       }
       setPendingRequest(false)
       setResult(formattedResult || null)
@@ -399,14 +401,24 @@ const Web3modalExample = (): ReactElement => {
     var idx = -1;
     var caver = new Caver();
     for(var i = 0; i < roleClasses.length; i++) {
-      var item = roleClasses[i];
+      let item = roleClasses[i];
       var bal = caver.utils.convertFromPeb(nativeCurrency.balance || 0, "KLAY")
       if(item.limit > bal) break;
       idx = i;
     }
-    console.log('idx', idx)
+    ret.push(
+      <Card>
+        <CardHeader>
+          The below table shows which role your discord account will get. Your role is colored <div style={{display:'inline-block',color:'red'}}>red</div>.
+          <br/>Note that you need to have more than {roleClasses[0].limit} KLAY to get the role.
+        </CardHeader>
+      </Card>
+    )
     for(i = 0; i < roleClasses.length; i++) {
-      var item = roleClasses[i];
+      let item = roleClasses[i];
+      if(i === idx) {
+        setDiscordRole(item.role)
+      }
       ret.push(
         <FormGroup key={item.limit}>
           <SFormInput
@@ -415,7 +427,7 @@ const Web3modalExample = (): ReactElement => {
             value={item.limit}
             readonly={true}
           />
-          <NameConverter><p style={{color:idx==i?'red':''}}>{item.role}</p></NameConverter>
+          <NameConverter><p style={{color:idx===i?'red':''}}>{item.role}</p></NameConverter>
         </FormGroup>
       )
     }
